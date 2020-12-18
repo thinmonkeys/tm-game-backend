@@ -1,1 +1,1 @@
-env GOOS=linux go build -ldflags="-s -w" -o bin/api lambda/main.go
+env GOOS=linux go build -ldflags="-s -w" -o bin/main lambda/main.go

@@ -20,6 +20,7 @@ functions:
       - http:
           path: helloWorld
           method: get
+          cors: true
         
 
 
