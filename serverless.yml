@@ -28,6 +28,13 @@ functions:
           path: getScore
           method: get
           cors: true
+  getScoreTemp:
+    handler: bin/main
+    events:
+      - http:
+          path: getScoreTemp
+          method: get
+          cors: true
   directdebits:
     handler: bin/main
     events:
@@ -37,6 +44,17 @@ functions:
           cors: true
       - http:
           path: directdebits
+          method: post
+          cors: true
+  contactdetails:
+    handler: bin/main
+    events:
+      - http:
+          path: contactdetails
+          method: get
+          cors: true
+      - http:
+          path: contactdetails
           method: post
           cors: true
         
