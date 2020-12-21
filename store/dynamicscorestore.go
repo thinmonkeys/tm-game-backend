@@ -48,8 +48,8 @@ type DynamicScoreRecord struct {
 const scoreRecordName = "score"
 
 // Put the record in DynamoDB.
-func (store DynamicScoreStore) Put(vr DynamicScoreRecord) (err error) {
-	item, err := dynamodbattribute.MarshalMap(vr)
+func (store DynamicScoreStore) Put(record DynamicScoreRecord) (err error) {
+	item, err := dynamodbattribute.MarshalMap(record)
 	if err != nil {
 		return
 	}

@@ -28,6 +28,13 @@ functions:
           path: getScore
           method: get
           cors: true
+  directdebits:
+    handler: bin/main
+    events:
+      - http:
+          path: directdebits
+          method: get
+          cors: true
         
 
 
