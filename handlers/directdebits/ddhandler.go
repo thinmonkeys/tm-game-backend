@@ -8,18 +8,11 @@ import (
 	"../../store"
 )
 
-type ScoreGetter func(cif string) (db.DynamicScoreRecord, bool, error)
-type ScorePutter func(record db.DynamicScoreRecord) (error)
 type DirectDebitLister func(cif string) ([]DirectDebit, error)
 
 type DirectDebitResponse struct {
 	DirectDebitList []DirectDebit
 	LastConfirmed time.Time
-}
-
-type ConfirmationResponse struct {
-	PointsGained int
-	NextPointsEligible time.Time
 }
 
 type DirectDebitHandler struct {
@@ -108,7 +101,6 @@ func (h *DirectDebitHandler) ConfirmDirectDebits(w http.ResponseWriter, r *http.
 		respond.WithJSON(w, http.StatusOK, ConfirmationResponse { 0, score.LastUpdatedDirectDebits.AddDate(0, 1, 0) })
 	}
 }
-
 
 func ListDummyDirectDebits(cif string) (dds []DirectDebit, err error){
 	return []DirectDebit {
