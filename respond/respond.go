@@ -8,13 +8,10 @@ import (
 
 // WithJSON writes a JSON response.
 func WithJSON(w http.ResponseWriter, status int, of interface{}) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Credentials", "true")
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	w.Header().Add(
-		"Access-Control-Allow-Origin", "*",
-	)
-	w.Header().Add(
-		"Access-Control-Allow-Credentials", "true",
-	)
 	e := json.NewEncoder(w)
 	err := e.Encode(of)
 	if err != nil {
