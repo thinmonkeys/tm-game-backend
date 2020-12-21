@@ -28,12 +28,12 @@ functions:
           path: getScore
           method: get
           cors: true
-  getScoreTemp:
+  login:
     handler: bin/main
     events:
       - http:
-          path: getScoreTemp
-          method: get
+          path: login
+          method: post
           cors: true
   directdebits:
     handler: bin/main
