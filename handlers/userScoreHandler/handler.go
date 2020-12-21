@@ -4,12 +4,14 @@ import (
 	"net/http"
 	"../../respond"
 	"../../store"
+	"../common"
 )
 
 type ScoreGetter func(cif string) (record db.DynamicScoreRecord, ok bool, err error)
 
 type UserScoreHandler struct {
 	scoreGetter ScoreGetter
+	requestAuthenticator func(r *http.Request) (cifKey string, err error) 
 }
 
 func NewHandler() UserScoreHandler {
@@ -17,6 +19,7 @@ func NewHandler() UserScoreHandler {
 	if(err != nil) { panic(err) }
 	return UserScoreHandler{
 		scoreGetter: store.Get,
+		requestAuthenticator: common.DefaultRequestAuthenticator().AuthenticateRequestAllowingQueryOverride,
 	}
 }
 
@@ -26,12 +29,11 @@ func (h *UserScoreHandler) GetScoreRecord(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	cifs := r.URL.Query()["cif"]
-	if len(cifs) == 0 {
-		respond.WithError(w, http.StatusBadRequest, "Please provide the Customer CIF in the querystring (?cif=)")
+	cif, err := h.requestAuthenticator(r)
+	if err != nil {
+		respond.WithError(w, http.StatusUnauthorized, err.Error())
 		return
 	}
-	cif := cifs[0]
 
 	record, ok, err := h.scoreGetter(cif)
 	if err != nil {

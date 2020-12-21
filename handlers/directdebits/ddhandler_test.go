@@ -68,10 +68,11 @@ func TestConfirmDirectDebits(t *testing.T) {
 				scoreGetter: mockGetter,
 				scorePutter: mockPutter,
 				directDebitLister: ListDummyDirectDebits,
+				requestAuthenticator: func(*http.Request) (string, error) { return tc.cifKey, nil },
 			}
 
 			w := httptest.NewRecorder()
-			r := httptest.NewRequest(http.MethodPost, "/directDebits?cif=" + tc.cifKey, nil)
+			r := httptest.NewRequest(http.MethodPost, "/directDebits", nil)
 			testHandler.ConfirmDirectDebits(w, r)
 			result := w.Result()
 

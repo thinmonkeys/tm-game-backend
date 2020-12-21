@@ -20,6 +20,7 @@ type ContactDetailsHandler struct {
 	scoreGetter common.ScoreGetter
 	scorePutter common.ScorePutter
 	contactDetailsGetter ContactDetailsGetter
+	requestAuthenticator func(r *http.Request) (cifKey string, err error) 
 }
 
 func NewHandler() ContactDetailsHandler {
@@ -29,6 +30,7 @@ func NewHandler() ContactDetailsHandler {
 		scoreGetter: store.Get,
 		scorePutter: store.Put,
 		contactDetailsGetter: GetDummyContactDetails,
+		requestAuthenticator: common.DefaultRequestAuthenticator().AuthenticateRequestAllowingQueryOverride,
 	}
 }
 
@@ -38,12 +40,11 @@ func (h *ContactDetailsHandler) GetContactDetails(w http.ResponseWriter, r *http
 		return
 	}
 
-	cifs := r.URL.Query()["cif"]
-	if len(cifs) == 0 {
-		respond.WithError(w, http.StatusBadRequest, "Please provide the Customer CIF in the querystring (?cif=)")
+	cif, err := h.requestAuthenticator(r)
+	if err != nil {
+		respond.WithError(w, http.StatusUnauthorized, err.Error())
 		return
 	}
-	cif := cifs[0]
 
 	details, err := h.contactDetailsGetter(cif)
 	if err != nil {
@@ -72,12 +73,11 @@ func (h *ContactDetailsHandler) ConfirmContactDetails(w http.ResponseWriter, r *
 		return
 	}
 
-	cifs := r.URL.Query()["cif"]
-	if len(cifs) == 0 {
-		respond.WithError(w, http.StatusBadRequest, "Please provide the Customer CIF in the querystring (?cif=)")
+	cif, err := h.requestAuthenticator(r)
+	if err != nil {
+		respond.WithError(w, http.StatusUnauthorized, err.Error())
 		return
 	}
-	cif := cifs[0]
 
 	score, scoreFound, err := h.scoreGetter(cif)
 	if err != nil {
@@ -91,12 +91,20 @@ func (h *ContactDetailsHandler) ConfirmContactDetails(w http.ResponseWriter, r *
 			LastUpdatedContactDetails: time.Now(),
 			Score: 100,
 		}
-		h.scorePutter(score)
+		err = h.scorePutter(score)
+		if(err != nil) {
+			respond.WithError(w, http.StatusInternalServerError, err.Error());
+			return
+		}
 		respond.WithJSON(w, http.StatusOK, common.ConfirmationResponse { 100, time.Now().AddDate(0, 1, 0) })
 	} else if score.LastUpdatedContactDetails.AddDate(0, 1, 0).Before(time.Now()) {
 		score.Score += 100
 		score.LastUpdatedContactDetails = time.Now()
-		h.scorePutter(score)
+		err = h.scorePutter(score)
+		if(err != nil) {
+			respond.WithError(w, http.StatusInternalServerError, err.Error());
+			return
+		}
 		respond.WithJSON(w, http.StatusOK, common.ConfirmationResponse { 100, time.Now().AddDate(0, 1, 0) })
 	} else {
 		respond.WithJSON(w, http.StatusOK, common.ConfirmationResponse { 0, score.LastUpdatedContactDetails.AddDate(0, 1, 0) })

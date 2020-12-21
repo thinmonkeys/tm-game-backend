@@ -20,6 +20,7 @@ type DirectDebitHandler struct {
 	scoreGetter common.ScoreGetter
 	scorePutter common.ScorePutter
 	directDebitLister DirectDebitLister
+	requestAuthenticator func(r *http.Request) (cifKey string, err error) 
 }
 
 func NewHandler() DirectDebitHandler {
@@ -29,6 +30,7 @@ func NewHandler() DirectDebitHandler {
 		scoreGetter: store.Get,
 		scorePutter: store.Put,
 		directDebitLister: ListDummyDirectDebits,
+		requestAuthenticator: common.DefaultRequestAuthenticator().AuthenticateRequestAllowingQueryOverride,
 	}
 }
 
@@ -38,12 +40,11 @@ func (h *DirectDebitHandler) GetDirectDebits(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	cifs := r.URL.Query()["cif"]
-	if len(cifs) == 0 {
-		respond.WithError(w, http.StatusBadRequest, "Please provide the Customer CIF in the querystring (?cif=)")
+	cif, err := h.requestAuthenticator(r)
+	if err != nil {
+		respond.WithError(w, http.StatusUnauthorized, err.Error())
 		return
 	}
-	cif := cifs[0]
 
 	dds, err := h.directDebitLister(cif)
 	if err != nil {
@@ -72,12 +73,11 @@ func (h *DirectDebitHandler) ConfirmDirectDebits(w http.ResponseWriter, r *http.
 		return
 	}
 
-	cifs := r.URL.Query()["cif"]
-	if len(cifs) == 0 {
-		respond.WithError(w, http.StatusBadRequest, "Please provide the Customer CIF in the querystring (?cif=)")
+	cif, err := h.requestAuthenticator(r)
+	if err != nil {
+		respond.WithError(w, http.StatusUnauthorized, err.Error())
 		return
 	}
-	cif := cifs[0]
 
 	score, scoreFound, err := h.scoreGetter(cif)
 	if err != nil {
