@@ -17,6 +17,11 @@ type DirectDebitResponse struct {
 	LastConfirmed time.Time
 }
 
+type ConfirmationResponse struct {
+	PointsGained int
+	NextPointsEligible time.Time
+}
+
 type DirectDebitHandler struct {
 	scoreGetter ScoreGetter
 	scorePutter ScorePutter
@@ -66,6 +71,44 @@ func (h *DirectDebitHandler) GetDirectDebits(w http.ResponseWriter, r *http.Requ
 		LastConfirmed: lastConfirmed,
 	})
 }
+
+func (h *DirectDebitHandler) ConfirmDirectDebits(w http.ResponseWriter, r *http.Request) {
+	if(r.Method != http.MethodPost) { 
+		respond.WithError(w, http.StatusMethodNotAllowed, "POST only")
+		return
+	}
+
+	cifs := r.URL.Query()["cif"]
+	if len(cifs) == 0 {
+		respond.WithError(w, http.StatusBadRequest, "Please provide the Customer CIF in the querystring (?cif=)")
+		return
+	}
+	cif := cifs[0]
+
+	score, scoreFound, err := h.scoreGetter(cif)
+	if err != nil {
+		respond.WithError(w, http.StatusInternalServerError, err.Error());
+		return
+	}
+
+	if !scoreFound {
+		score = db.DynamicScoreRecord{
+			CustomerCIF: cif,
+			LastUpdatedDirectDebits: time.Now(),
+			Score: 100,
+		}
+		h.scorePutter(score)
+		respond.WithJSON(w, http.StatusOK, ConfirmationResponse { 100, time.Now().AddDate(0, 1, 0) })
+	} else if score.LastUpdatedDirectDebits.AddDate(0, 1, 0).Before(time.Now()) {
+		score.Score += 100
+		score.LastUpdatedDirectDebits = time.Now()
+		h.scorePutter(score)
+		respond.WithJSON(w, http.StatusOK, ConfirmationResponse { 100, time.Now().AddDate(0, 1, 0) })
+	} else {
+		respond.WithJSON(w, http.StatusOK, ConfirmationResponse { 0, score.LastUpdatedDirectDebits.AddDate(0, 1, 0) })
+	}
+}
+
 
 func ListDummyDirectDebits(cif string) (dds []DirectDebit, err error){
 	return []DirectDebit {

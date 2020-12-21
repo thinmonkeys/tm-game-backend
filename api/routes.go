@@ -18,6 +18,8 @@ func New() (*chi.Mux, error) {
 	r.Get("/helloWorld", hw.SayHello)
 	r.Get("/getScore", us.GetScoreRecord)
 
-	r.Get("/directdebits", dd.GetDirectDebits)
+	r.Get("/directdebits", dd.GetDirectDebits)	
+	r.Post("/directdebits", dd.ConfirmDirectDebits)
+
 	return r, nil
 }

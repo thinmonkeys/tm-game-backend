@@ -35,6 +35,10 @@ functions:
           path: directdebits
           method: get
           cors: true
+      - http:
+          path: directdebits
+          method: post
+          cors: true
         
 
 
