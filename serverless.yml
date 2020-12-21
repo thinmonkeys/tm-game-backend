@@ -21,6 +21,13 @@ functions:
           path: helloWorld
           method: get
           cors: true
+  getScore:
+    handler: bin/main
+    events:
+      - http:
+          path: getScore
+          method: get
+          cors: true
         
 
 
