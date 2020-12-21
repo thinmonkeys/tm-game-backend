@@ -6,6 +6,7 @@ import (
 
 	"../../respond"
 	"../../store"
+	"../common"
 )
 
 type DirectDebitLister func(cif string) ([]DirectDebit, error)
@@ -16,8 +17,8 @@ type DirectDebitResponse struct {
 }
 
 type DirectDebitHandler struct {
-	scoreGetter ScoreGetter
-	scorePutter ScorePutter
+	scoreGetter common.ScoreGetter
+	scorePutter common.ScorePutter
 	directDebitLister DirectDebitLister
 }
 
@@ -91,14 +92,14 @@ func (h *DirectDebitHandler) ConfirmDirectDebits(w http.ResponseWriter, r *http.
 			Score: 100,
 		}
 		h.scorePutter(score)
-		respond.WithJSON(w, http.StatusOK, ConfirmationResponse { 100, time.Now().AddDate(0, 1, 0) })
+		respond.WithJSON(w, http.StatusOK, common.ConfirmationResponse { 100, time.Now().AddDate(0, 1, 0) })
 	} else if score.LastUpdatedDirectDebits.AddDate(0, 1, 0).Before(time.Now()) {
 		score.Score += 100
 		score.LastUpdatedDirectDebits = time.Now()
 		h.scorePutter(score)
-		respond.WithJSON(w, http.StatusOK, ConfirmationResponse { 100, time.Now().AddDate(0, 1, 0) })
+		respond.WithJSON(w, http.StatusOK, common.ConfirmationResponse { 100, time.Now().AddDate(0, 1, 0) })
 	} else {
-		respond.WithJSON(w, http.StatusOK, ConfirmationResponse { 0, score.LastUpdatedDirectDebits.AddDate(0, 1, 0) })
+		respond.WithJSON(w, http.StatusOK, common.ConfirmationResponse { 0, score.LastUpdatedDirectDebits.AddDate(0, 1, 0) })
 	}
 }
 
