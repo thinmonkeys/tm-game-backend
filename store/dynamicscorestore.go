@@ -2,7 +2,6 @@ package db
 
 import (
 	"context"
-	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/external"
@@ -38,11 +37,7 @@ type DynamicScoreStore struct {
 // DynamicScoreRecord is the data used to store challenges.
 type DynamicScoreRecord struct {
 	CustomerCIF  string 
-	Score    	int 
-	LastUpdatedContactDetails    time.Time
-	LastUpdatedStandingOrders 	 time.Time 
-	LastUpdatedDirectDebits 	 time.Time 
-	LastUpdatedIncomes 	 		 time.Time
+	Score    	int
 }
 
 // Put the record in DynamoDB.
@@ -90,5 +85,25 @@ func (store DynamicScoreStore) Get(cif string) (record DynamicScoreRecord, ok bo
 		return
 	}
 	ok = record.CustomerCIF != ""
+	return
+}
+
+// GetAllScores retrieves score values for all customers in the database, for calculating position
+func (store DynamicScoreStore) GetAllScores() (scores []int, err error) {
+	input := &dynamodb.ScanInput{
+		ConsistentRead:   aws.Bool(true),
+		TableName: store.TableName,
+	}
+	scanReq := store.Client.ScanRequest(input)
+	scanResult, err := scanReq.Send(context.Background())
+	if err != nil {	return }
+
+	scores = []int{}
+	for _,item := range scanResult.Items {
+		var record DynamicScoreRecord
+		err = dynamodbattribute.UnmarshalMap(item, &record)
+		if err != nil { return }
+		scores = append(scores, record.Score)
+	}
 	return
 }

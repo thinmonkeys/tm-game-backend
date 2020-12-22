@@ -26,7 +26,7 @@ func NewBadgeHistoryStore(region, tableName string) (cs BadgeHistoryStore, err e
 }
 
 func DefaultBadgeHistoryStore() (cs BadgeHistoryStore, err error) {
-	return NewBadgeHistoryStore("eu-west-1", "UserBadgeHistory")
+	return NewBadgeHistoryStore("eu-west-1", "UserBadgeTable")
 }
 
 // BadgeHistoryStore stores user's BadgeHistory records in DynamoDB.
@@ -68,9 +68,9 @@ func (store BadgeHistoryStore) Get(cif string) (record []BadgeHistoryRecord, err
 
 	input := &dynamodb.ScanInput{
 		ConsistentRead:   aws.Bool(true),
-		FilterExpression: aws.String("CustomerCIF = CIF"),
+		FilterExpression: aws.String("CustomerCIF = :cif"),
 		ExpressionAttributeValues: map[string]dynamodb.AttributeValue{
-			"CIF": {
+			":cif": {
 				S: aws.String(cif),
 			},
 		},

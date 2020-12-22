@@ -51,9 +51,7 @@ func (store ScoreHistoryStore) Put(record ScoreHistoryRecord) (err error) {
 	if err != nil {
 		return
 	}
-	item["CIFWithCategory"] = dynamodb.AttributeValue{
-		S: aws.String(record.CustomerCIF + record.CategoryCode),
-	}
+	item["CIFWithCategory"] = getKeyAttribute(record.CustomerCIF, record.CategoryCode)
 	pir := store.Client.PutItemRequest(&dynamodb.PutItemInput{
 		TableName: store.TableName,
 		Item:      item,
@@ -67,12 +65,12 @@ func (store ScoreHistoryStore) Put(record ScoreHistoryRecord) (err error) {
 }
 
 // Get retrieves data from DynamoDB.
-func (store ScoreHistoryStore) Get(cif string) (record []ScoreHistoryRecord, err error) {
+func (store ScoreHistoryStore) GetAll(cif string) (records []ScoreHistoryRecord, err error) {
 	input := &dynamodb.ScanInput{
 		ConsistentRead:   aws.Bool(true),
-		FilterExpression: aws.String("CustomerCIF = CIF"),
+		FilterExpression: aws.String("CustomerCIF = :cif"),
 		ExpressionAttributeValues: map[string]dynamodb.AttributeValue{
-			"CIF": {
+			":cif": {
 				S: aws.String(cif),
 			},
 		},
@@ -85,6 +83,36 @@ func (store ScoreHistoryStore) Get(cif string) (record []ScoreHistoryRecord, err
 	if err != nil {
 		return
 	}
-	err = dynamodbattribute.UnmarshalListOfMaps(getResult.Items, &record)
+	err = dynamodbattribute.UnmarshalListOfMaps(getResult.Items, &records)
 	return
+}
+
+func (store ScoreHistoryStore) Get(cif string, categoryCode string) (record ScoreHistoryRecord, ok bool, err error) {
+	input := &dynamodb.GetItemInput{
+		ConsistentRead:   aws.Bool(true),
+		Key: map[string]dynamodb.AttributeValue{
+			"CIFWithCategory": getKeyAttribute(cif, categoryCode),
+		},
+		TableName: store.TableName,
+	}
+ 	getReq := store.Client.GetItemRequest(input)
+
+	getResult, err := getReq.Send(context.Background())
+
+	if err != nil {
+		return
+	}
+	if getResult.Item == nil {
+		ok = false
+		return
+	}
+	err = dynamodbattribute.UnmarshalMap(getResult.Item, &record)
+	ok = (err == nil && record.CustomerCIF == cif)
+	return
+}
+
+func getKeyAttribute(cif string, categoryCode string) dynamodb.AttributeValue {
+	return dynamodb.AttributeValue{
+		S: aws.String(cif + categoryCode),
+	}
 }

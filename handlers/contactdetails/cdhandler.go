@@ -2,6 +2,7 @@ package contactdetails
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"time"
@@ -9,7 +10,6 @@ import (
 	cd "../../contactdetails"
 	cdProvider "../../providers/contactdetails"
 	"../../respond"
-	db "../../store"
 	"../common"
 )
 
@@ -18,21 +18,19 @@ type ContactDetailsGetter func(cif string) (cd.ContactDetails, error)
 type ContactDetailsResponse struct {
 	ContactDetails cd.ContactDetails
 	LastConfirmed time.Time
+	LastScored time.Time
+	Badges []common.BadgeType
 }
 
 type ContactDetailsHandler struct {
-	scoreGetter common.ScoreGetter
-	scorePutter common.ScorePutter
+	common.ConfirmationHandler
 	provider cd.ContactDetailsProvider
 	requestAuthenticator func(r *http.Request) (cifKey string, err error) 
 }
 
-func NewHandler() ContactDetailsHandler {
-	store, err := db.DefaultDynamicScoreStore()
-	if(err != nil) { panic(err) }
+func NewHandler(confirmationHandler common.ConfirmationHandler) ContactDetailsHandler {
 	return ContactDetailsHandler{
-		scoreGetter: store.Get,
-		scorePutter: store.Put,
+		ConfirmationHandler: confirmationHandler,
 		provider: cdProvider.NewProvider(),
 		requestAuthenticator: common.DefaultRequestAuthenticator().AuthenticateRequestAllowingQueryOverride,
 	}
@@ -56,19 +54,28 @@ func (h *ContactDetailsHandler) GetContactDetails(w http.ResponseWriter, r *http
 		return
 	}
 
-	score, scoreFound, err := h.scoreGetter(cif)
+	response := ContactDetailsResponse {
+		ContactDetails: details,
+		LastConfirmed: time.Time{},
+		LastScored: time.Time{},
+	}
+
+	scoreCategory, scoreFound, err := h.ConfirmationHandler.CategoryGetter(cif, common.ScoreCategoryContactDetails.Code)
 	if err != nil {
 		respond.WithError(w, http.StatusInternalServerError, err.Error());
 		return
 	}
+	if scoreFound { 
+		response.LastConfirmed = scoreCategory.LastConfirmed 
+		response.LastScored = scoreCategory.LastScored
+		response.Badges, err = h.ConfirmationHandler.GetBadgesByCategory(cif, common.ScoreCategoryContactDetails)
+		if err != nil {
+			respond.WithError(w, http.StatusInternalServerError, fmt.Sprintf("Error getting badges: %s", err.Error()));
+			return
+		}
+	}
 
-	lastConfirmed := time.Time{}
-	if scoreFound { lastConfirmed = score.LastUpdatedContactDetails }
-
-	respond.WithJSON(w, http.StatusOK, ContactDetailsResponse {
-		ContactDetails: details,
-		LastConfirmed: lastConfirmed,
-	})
+	respond.WithJSON(w, http.StatusOK, response)
 }
 
 func (h *ContactDetailsHandler) ConfirmContactDetails(w http.ResponseWriter, r *http.Request) {
@@ -83,36 +90,13 @@ func (h *ContactDetailsHandler) ConfirmContactDetails(w http.ResponseWriter, r *
 		return
 	}
 
-	score, scoreFound, err := h.scoreGetter(cif)
+	response, err := h.ConfirmationHandler.ConfirmCategory(cif, common.ScoreCategoryContactDetails)
 	if err != nil {
-		respond.WithError(w, http.StatusInternalServerError, err.Error());
+		respond.WithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	if !scoreFound {
-		score = db.DynamicScoreRecord{
-			CustomerCIF: cif,
-			LastUpdatedContactDetails: time.Now(),
-			Score: 100,
-		}
-		err = h.scorePutter(score)
-		if(err != nil) {
-			respond.WithError(w, http.StatusInternalServerError, err.Error());
-			return
-		}
-		respond.WithJSON(w, http.StatusOK, common.ConfirmationResponse { 100, time.Now().AddDate(0, 1, 0) })
-	} else if score.LastUpdatedContactDetails.AddDate(0, 1, 0).Before(time.Now()) {
-		score.Score += 100
-		score.LastUpdatedContactDetails = time.Now()
-		err = h.scorePutter(score)
-		if(err != nil) {
-			respond.WithError(w, http.StatusInternalServerError, err.Error());
-			return
-		}
-		respond.WithJSON(w, http.StatusOK, common.ConfirmationResponse { 100, time.Now().AddDate(0, 1, 0) })
-	} else {
-		respond.WithJSON(w, http.StatusOK, common.ConfirmationResponse { 0, score.LastUpdatedContactDetails.AddDate(0, 1, 0) })
-	}
+	respond.WithJSON(w, http.StatusOK, response)
 }
 
 func (h *ContactDetailsHandler) SaveMobileNumber(w http.ResponseWriter, r *http.Request) {

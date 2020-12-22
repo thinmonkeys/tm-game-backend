@@ -2,36 +2,34 @@ package directdebits
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
-	"../common"
 	"../../payments"
-	"../../respond"
-	"../../store"
 	ddProvider "../../providers/directdebits"
+	"../../respond"
+	"../common"
 )
 
 type DirectDebitResponse struct {
 	DirectDebitList []payments.Payment
 	LastConfirmed time.Time
+	LastScored time.Time
+	Badges []common.BadgeType
 }
 
 type DirectDebitHandler struct {
-	scoreGetter common.ScoreGetter
-	scorePutter common.ScorePutter
+	common.ConfirmationHandler
 	paymentLister payments.PaymentLister
 	paymentUpdater payments.PaymentUpdater
 	requestAuthenticator func(r *http.Request) (cifKey string, err error) 
 }
 
-func NewHandler() DirectDebitHandler {
-	store, err := db.DefaultDynamicScoreStore()
-	if(err != nil) { panic(err) }
+func NewHandler(confirmationHandler common.ConfirmationHandler) DirectDebitHandler {
 	provider := ddProvider.NewProvider()
 	return DirectDebitHandler{
-		scoreGetter: store.Get,
-		scorePutter: store.Put,
+		ConfirmationHandler: confirmationHandler,
 		paymentLister: provider.GetDirectDebits,
 		paymentUpdater: provider.SaveDirectDebit,
 		requestAuthenticator: common.DefaultRequestAuthenticator().AuthenticateRequestAllowingQueryOverride,
@@ -56,19 +54,28 @@ func (h *DirectDebitHandler) GetDirectDebits(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	score, scoreFound, err := h.scoreGetter(cif)
+	response := DirectDebitResponse {
+		DirectDebitList: dds,
+		LastConfirmed: time.Time{},
+		LastScored: time.Time{},
+	}
+
+	scoreCategory, scoreFound, err := h.ConfirmationHandler.CategoryGetter(cif, common.ScoreCategoryDirectDebits.Code)
 	if err != nil {
 		respond.WithError(w, http.StatusInternalServerError, err.Error());
 		return
 	}
+	if scoreFound { 
+		response.LastConfirmed = scoreCategory.LastConfirmed 
+		response.LastScored = scoreCategory.LastScored
+		response.Badges, err = h.ConfirmationHandler.GetBadgesByCategory(cif, common.ScoreCategoryDirectDebits)
+		if err != nil {
+			respond.WithError(w, http.StatusInternalServerError, fmt.Sprintf("Error getting badges: %s", err.Error()));
+			return
+		}
+	}
 
-	lastConfirmed := time.Time{}
-	if scoreFound { lastConfirmed = score.LastUpdatedDirectDebits }
-
-	respond.WithJSON(w, http.StatusOK, DirectDebitResponse {
-		DirectDebitList: dds,
-		LastConfirmed: lastConfirmed,
-	})
+	respond.WithJSON(w, http.StatusOK, response)
 }
 
 func (h *DirectDebitHandler) ConfirmDirectDebits(w http.ResponseWriter, r *http.Request) {
@@ -83,28 +90,13 @@ func (h *DirectDebitHandler) ConfirmDirectDebits(w http.ResponseWriter, r *http.
 		return
 	}
 
-	score, scoreFound, err := h.scoreGetter(cif)
+	response, err := h.ConfirmationHandler.ConfirmCategory(cif, common.ScoreCategoryDirectDebits)
 	if err != nil {
-		respond.WithError(w, http.StatusInternalServerError, err.Error());
+		respond.WithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	if !scoreFound {
-		score = db.DynamicScoreRecord{
-			CustomerCIF: cif,
-			LastUpdatedDirectDebits: time.Now(),
-			Score: 100,
-		}
-		h.scorePutter(score)
-		respond.WithJSON(w, http.StatusOK, common.ConfirmationResponse { 100, time.Now().AddDate(0, 1, 0) })
-	} else if score.LastUpdatedDirectDebits.AddDate(0, 1, 0).Before(time.Now()) {
-		score.Score += 100
-		score.LastUpdatedDirectDebits = time.Now()
-		h.scorePutter(score)
-		respond.WithJSON(w, http.StatusOK, common.ConfirmationResponse { 100, time.Now().AddDate(0, 1, 0) })
-	} else {
-		respond.WithJSON(w, http.StatusOK, common.ConfirmationResponse { 0, score.LastUpdatedDirectDebits.AddDate(0, 1, 0) })
-	}
+	respond.WithJSON(w, http.StatusOK, response)
 }
 
 func (h *DirectDebitHandler) UpdateDirectDebit(w http.ResponseWriter, r *http.Request) {

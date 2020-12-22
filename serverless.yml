@@ -14,18 +14,11 @@ package:
     - ./bin/**
 
 functions:
-  helloworld:
+  score:
     handler: bin/main
     events:
       - http:
-          path: helloWorld
-          method: get
-          cors: true
-  getScore:
-    handler: bin/main
-    events:
-      - http:
-          path: getScore
+          path: score
           method: get
           cors: true
   login:
