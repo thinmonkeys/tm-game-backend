@@ -25,7 +25,7 @@ func NewScoreHistoryStore(region, tableName string) (cs ScoreHistoryStore, err e
 	return
 }
 
-func DefaulScoreHistoryStore() (cs DynamicScoreStore, err error) {
+func DefaultScoreHistoryStore() (cs ScoreHistoryStore, err error) {
 	return NewScoreHistoryStore("eu-west-1", "UserScoreHistory")
 }
 
@@ -45,8 +45,6 @@ type ScoreHistoryRecord struct {
 	TimesScored    int       `json:"TimesScored"`
 }
 
-const scoreRecordName = "history"
-
 // Put the record in DynamoDB.
 func (store ScoreHistoryStore) Put(record ScoreHistoryRecord) (err error) {
 	item, err := dynamodbattribute.MarshalMap(record)
@@ -54,7 +52,7 @@ func (store ScoreHistoryStore) Put(record ScoreHistoryRecord) (err error) {
 		return
 	}
 	item["CIFWithCategory"] = dynamodb.AttributeValue{
-		S: aws.String(record.CustomerCIF + record.CategoryCode)
+		S: aws.String(record.CustomerCIF + record.CategoryCode),
 	}
 	pir := store.Client.PutItemRequest(&dynamodb.PutItemInput{
 		TableName: store.TableName,
@@ -87,8 +85,6 @@ func (store ScoreHistoryStore) Get(cif string) (record []ScoreHistoryRecord, err
 	if err != nil {
 		return
 	}
-	err = dynamodbattribute.UnmarshalMap(getResult.Items, &record)
-	if err != nil {
-		return
-	}
+	err = dynamodbattribute.UnmarshalListOfMaps(getResult.Items, &record)
+	return
 }

@@ -45,8 +45,6 @@ type DynamicScoreRecord struct {
 	LastUpdatedIncomes 	 		 time.Time
 }
 
-const scoreRecordName = "score"
-
 // Put the record in DynamoDB.
 func (store DynamicScoreStore) Put(record DynamicScoreRecord) (err error) {
 	item, err := dynamodbattribute.MarshalMap(record)

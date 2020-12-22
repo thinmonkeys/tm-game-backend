@@ -25,8 +25,8 @@ func NewBadgeHistoryStore(region, tableName string) (cs BadgeHistoryStore, err e
 	return
 }
 
-func DefaulBadgeHistoryStore() (cs BadgeHistoryStore, err error) {
-	return NewScoreHistoryStore("eu-west-1", "UserBadgeHistory")
+func DefaultBadgeHistoryStore() (cs BadgeHistoryStore, err error) {
+	return NewBadgeHistoryStore("eu-west-1", "UserBadgeHistory")
 }
 
 // BadgeHistoryStore stores user's BadgeHistory records in DynamoDB.
@@ -42,16 +42,14 @@ type BadgeHistoryRecord struct {
 	DateAwarded  time.Time `json:"DateAwarded"`
 }
 
-const badgeRecordName = "badges"
-
 // Put the record in DynamoDB.
-func (store BadgeHistoryStore) Put(record ScoreHistoryRecord) (err error) {
+func (store BadgeHistoryStore) Put(record BadgeHistoryRecord) (err error) {
 	item, err := dynamodbattribute.MarshalMap(record)
 	if err != nil {
 		return
 	}
 	item["CIFWithBadgeCode"] = dynamodb.AttributeValue{
-		S: aws.String(record.CustomerCIF + record.BadgeCode)
+		S: aws.String(record.CustomerCIF + record.BadgeCode),
 	}
 	pir := store.Client.PutItemRequest(&dynamodb.PutItemInput{
 		TableName: store.TableName,
@@ -85,8 +83,8 @@ func (store BadgeHistoryStore) Get(cif string) (record []BadgeHistoryRecord, err
 	if err != nil {
 		return
 	}
-	err = dynamodbattribute.UnmarshalMap(getResult.Items, &record)
-	if err != nil {
-		return
-	}
+
+
+	err = dynamodbattribute.UnmarshalListOfMaps(getResult.Items, &record)
+	return
 }
