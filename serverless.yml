@@ -35,6 +35,13 @@ functions:
           path: directdebits
           method: any
           cors: true
+  standingorders:
+    handler: bin/main
+    events:
+      - http:
+          path: standingorders
+          method: any
+          cors: true
   contactdetails:
     handler: bin/main
     events:

@@ -40,8 +40,6 @@ type osDirectDebit struct {
 	Status string  //         : NotClaiming
 }
 
-const dateOnlyFormat string = "2006-01-02"
-
 type osFrequency struct {
 	DueDay int //12
 	FrequencyID int // 6
@@ -74,7 +72,7 @@ func (ddp DirectDebitProvider) GetDirectDebits(cif string) ([]payments.Payment, 
 
 	results := []payments.Payment{}
 	for _,osDD := range osDDs {
-		dueDate, err := time.Parse(dateOnlyFormat, osDD.DueDate)
+		dueDate, err := time.Parse(common.DateOnlyFormat, osDD.DueDate)
 		if err != nil { return nil, fmt.Errorf("Error decoding date value '%s' as date: %s", osDD.DueDate, err.Error()) }
 		results = append(results, payments.Payment {
 			ID: osDD.DirectDebitID,
@@ -109,13 +107,10 @@ func (ddp DirectDebitProvider) SaveDirectDebit(cif string, payment payments.Paym
 		return fmt.Errorf("Direct debit %d not found", payment.ID)
 	}
 
-	changed := osDD.DueDate != payment.DueDate.Format(dateOnlyFormat) || int(math.Round(osDD.Amount * 100)) != payment.AmountPence
-	if osFrequencyMapFromId[osDD.Frequency.FrequencyID] != payment.Frequency {
-		osDD.Frequency = mapFrequencyToOutSystems(payment.Frequency, payment.DueDate)
-		changed = true
-	}
-	formattedDate := payment.DueDate.Format(dateOnlyFormat)
-	if formattedDate != osDD.DueDate {
+	formattedDate := payment.DueDate.Format(common.DateOnlyFormat)
+	changed := false
+	if osDD.DueDate != formattedDate || osFrequencyMapFromId[osDD.Frequency.FrequencyID] != payment.Frequency {
+		osDD.Frequency = mapFrequencyToOutSystems(payment.Frequency, payment.DueDate)		
 		osDD.DueDate = formattedDate
 		changed = true
 	}
