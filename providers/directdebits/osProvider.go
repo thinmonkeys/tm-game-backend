@@ -45,6 +45,7 @@ const dateOnlyFormat string = "2006-01-02"
 type osFrequency struct {
 	DueDay int //12
 	FrequencyID int // 6
+	DayOfTheWeek int 
 }
 
 var osFrequencyMapFromId map[int]payments.Frequency = map[int]payments.Frequency{
@@ -59,19 +60,20 @@ var osFrequencyMapFromId map[int]payments.Frequency = map[int]payments.Frequency
 	9: payments.FrequencyMonthly,
 }
 
+var osFrequencyMapToId map[payments.Frequency]int = map[payments.Frequency]int{
+	payments.FrequencyWeekly: 1,
+	payments.FrequencyFortnightly: 2,
+	payments.FrequencyMonthly: 6,
+	payments.FrequencyQuarterly: 7,
+	payments.FrequencyAnnually: 8,
+}
+
 func (ddp DirectDebitProvider) GetDirectDebits(cif string) ([]payments.Payment, error) {
-	accountID, err := ddp.accountCache.GetPrimaryAccountId(cif)
+	osDDs, err := ddp.getOutsystemsDirectDebits(cif)
 	if err != nil { return nil, err }
-
-	response, err := ddp.connection.RunRequest(http.MethodGet, fmt.Sprintf("/directdebits/%s/%s", cif, accountID), nil)
-	if err != nil { return nil, err }
-
-	osDirectDebits := []osDirectDebit{}
-	err = json.NewDecoder(response.Body).Decode(&osDirectDebits)
-	if err != nil { return nil, fmt.Errorf("Error decoding JSON response: %s", err.Error()) }
 
 	results := []payments.Payment{}
-	for _,osDD := range osDirectDebits {
+	for _,osDD := range osDDs {
 		dueDate, err := time.Parse(dateOnlyFormat, osDD.DueDate)
 		if err != nil { return nil, fmt.Errorf("Error decoding date value '%s' as date: %s", osDD.DueDate, err.Error()) }
 		results = append(results, payments.Payment {
@@ -85,4 +87,73 @@ func (ddp DirectDebitProvider) GetDirectDebits(cif string) ([]payments.Payment, 
 	}
 
 	return results, nil
+}
+
+func (ddp DirectDebitProvider) SaveDirectDebit(cif string, payment payments.Payment) (err error) {
+	accountID, err := ddp.accountCache.GetPrimaryAccountId(cif)
+	if err != nil { return }
+
+	osDDs, err := ddp.getOutsystemsDirectDebits(cif)
+	if err != nil { return err }
+
+	found := false
+	var osDD osDirectDebit
+	for _,dd := range osDDs {
+		if dd.DirectDebitID == payment.ID {
+			osDD = dd
+			found = true
+			break
+		}
+	}
+	if !found {
+		return fmt.Errorf("Direct debit %d not found", payment.ID)
+	}
+
+	changed := osDD.DueDate != payment.DueDate.Format(dateOnlyFormat) || int(math.Round(osDD.Amount * 100)) != payment.AmountPence
+	if osFrequencyMapFromId[osDD.Frequency.FrequencyID] != payment.Frequency {
+		osDD.Frequency = mapFrequencyToOutSystems(payment.Frequency, payment.DueDate)
+		changed = true
+	}
+	formattedDate := payment.DueDate.Format(dateOnlyFormat)
+	if formattedDate != osDD.DueDate {
+		osDD.DueDate = formattedDate
+		changed = true
+	}
+	if int(math.Round(osDD.Amount * 100)) != payment.AmountPence {
+		osDD.Amount = float64(payment.AmountPence) * float64(0.01)
+		changed = true
+	}
+
+	if changed {
+		_,err = ddp.connection.RunRequest(http.MethodPut, fmt.Sprintf("/directdebits/%s/%s", cif, accountID), osDD)
+	}
+	return
+}
+
+func (ddp DirectDebitProvider) getOutsystemsDirectDebits(cif string) (osDDs []osDirectDebit, err error) {
+	osDDs = []osDirectDebit{}
+	accountID, err := ddp.accountCache.GetPrimaryAccountId(cif)
+	if err != nil { return }
+
+	response, err := ddp.connection.RunRequest(http.MethodGet, fmt.Sprintf("/directdebits/%s/%s", cif, accountID), nil)
+	if err != nil { return }
+	
+	err = json.NewDecoder(response.Body).Decode(&osDDs)
+	if err != nil { err = fmt.Errorf("Error decoding JSON response: %s", err.Error()) }
+	return
+}
+
+func mapFrequencyToOutSystems(freq payments.Frequency, dueDate time.Time) osFrequency {
+	switch freq {
+	case payments.FrequencyWeekly, payments.FrequencyFortnightly:
+		return osFrequency{
+			FrequencyID: osFrequencyMapToId[freq],
+			DayOfTheWeek: (int(dueDate.Weekday()) + 6) % 7 + 1,  // golang Weekday gives 0(Sun)-6(Sat), want 1(Mon)-7(Sun)
+		}
+	default:
+		return osFrequency{
+			FrequencyID: osFrequencyMapToId[freq],
+			DueDay: dueDate.Day(),
+		}
+	}
 }

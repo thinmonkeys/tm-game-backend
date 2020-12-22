@@ -25,6 +25,7 @@ func New() (*chi.Mux, error) {
 
 	r.Get("/directdebits", dd.GetDirectDebits)	
 	r.Post("/directdebits", dd.ConfirmDirectDebits)
+	r.Put("/directdebits", dd.UpdateDirectDebit)
 
 	r.Get("/contactdetails", cd.GetContactDetails)	
 	r.Post("/contactdetails", cd.ConfirmContactDetails)

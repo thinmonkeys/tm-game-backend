@@ -1,13 +1,14 @@
 package directdebits
 
 import (
+	"encoding/json"
 	"net/http"
 	"time"
 
-	"../../respond"
-	"../../store"
 	"../common"
 	"../../payments"
+	"../../respond"
+	"../../store"
 	ddProvider "../../providers/directdebits"
 )
 
@@ -20,6 +21,7 @@ type DirectDebitHandler struct {
 	scoreGetter common.ScoreGetter
 	scorePutter common.ScorePutter
 	paymentLister payments.PaymentLister
+	paymentUpdater payments.PaymentUpdater
 	requestAuthenticator func(r *http.Request) (cifKey string, err error) 
 }
 
@@ -31,6 +33,7 @@ func NewHandler() DirectDebitHandler {
 		scoreGetter: store.Get,
 		scorePutter: store.Put,
 		paymentLister: provider.GetDirectDebits,
+		paymentUpdater: provider.SaveDirectDebit,
 		requestAuthenticator: common.DefaultRequestAuthenticator().AuthenticateRequestAllowingQueryOverride,
 	}
 }
@@ -102,6 +105,34 @@ func (h *DirectDebitHandler) ConfirmDirectDebits(w http.ResponseWriter, r *http.
 	} else {
 		respond.WithJSON(w, http.StatusOK, common.ConfirmationResponse { 0, score.LastUpdatedDirectDebits.AddDate(0, 1, 0) })
 	}
+}
+
+func (h *DirectDebitHandler) UpdateDirectDebit(w http.ResponseWriter, r *http.Request) {
+	if(r.Method != http.MethodPut) { 
+		respond.WithError(w, http.StatusMethodNotAllowed, "PUT only")
+		return
+	}
+
+	cif, err := h.requestAuthenticator(r)
+	if err != nil {
+		respond.WithError(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+
+	directDebit := payments.Payment{}
+	err = json.NewDecoder(r.Body).Decode(&directDebit)
+	if err != nil {
+		respond.WithError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	err = h.paymentUpdater(cif, directDebit)
+	if err != nil {
+		respond.WithError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	respond.WithOK(w)
 }
 
 func ListDummyDirectDebits(cif string) (dds []payments.Payment, err error){

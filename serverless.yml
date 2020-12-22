@@ -40,11 +40,7 @@ functions:
     events:
       - http:
           path: directdebits
-          method: get
-          cors: true
-      - http:
-          path: directdebits
-          method: post
+          method: any
           cors: true
   contactdetails:
     handler: bin/main

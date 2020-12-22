@@ -16,6 +16,7 @@ func Build(id int, recipientId int, recipient string, dueDate time.Time, freq Fr
 }
 
 type PaymentLister func(cif string) ([]Payment, error)
+type PaymentUpdater func(cif string, payment Payment) (error)
 
 type Frequency string
 
