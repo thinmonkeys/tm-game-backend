@@ -32,6 +32,7 @@ func New() (*chi.Mux, error) {
 	r.Put("/contactdetails/mobile", cd.SaveMobileNumber)
 	r.Put("/contactdetails/home", cd.SaveHomeNumber)
 	r.Put("/contactdetails/email", cd.SaveEmailAddress)
+	r.Put("/contactdetails/address", cd.SaveAddress)
 
 	return r, nil
 }

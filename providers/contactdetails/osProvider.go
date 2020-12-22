@@ -90,6 +90,22 @@ func (cdp ContactDetailsProvider) SaveEmailAddress(cif string, newEmailAddress s
 	return
 }
 
-
+func (cdp ContactDetailsProvider) SaveAddress(cif string, newAddress cd.Address) (err error) {
+	newOsAddress := osAddress {
+		ApartmentNumber: newAddress.FlatNumber,
+		HouseName: newAddress.HouseName,
+		HouseNumber: newAddress.HouseNumber,
+		Street: newAddress.StreetName,
+		District: newAddress.District,
+		City: newAddress.Town,
+		County: newAddress.County,
+		PostCode: newAddress.PostCode,
+		Country: "00826",
+		TimeAtAddressMonths: 0,
+		TimeAtAddressYears: 0,
+	}
+	_,err = cdp.connection.RunRequest(http.MethodPut, fmt.Sprintf("/contactdetails/%s/address", cif), newOsAddress)
+	return
+}
 
 

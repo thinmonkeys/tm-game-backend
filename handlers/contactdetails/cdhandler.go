@@ -1,15 +1,16 @@
 package contactdetails
 
 import (
+	"encoding/json"
+	"io/ioutil"
 	"net/http"
 	"time"
-	"io/ioutil"
 
-	"../common"
-	"../../respond"
 	cd "../../contactdetails"
-	db "../../store"
 	cdProvider "../../providers/contactdetails"
+	"../../respond"
+	db "../../store"
+	"../common"
 )
 
 type ContactDetailsGetter func(cif string) (cd.ContactDetails, error)
@@ -122,6 +123,33 @@ func (h *ContactDetailsHandler) SaveHomeNumber(w http.ResponseWriter, r *http.Re
 }
 func (h *ContactDetailsHandler) SaveEmailAddress(w http.ResponseWriter, r *http.Request) {
 	h.saveContactDetail(w, r, h.provider.SaveEmailAddress)
+}
+func (h *ContactDetailsHandler) SaveAddress(w http.ResponseWriter, r *http.Request) {
+	if(r.Method != http.MethodPut) { 
+		respond.WithError(w, http.StatusMethodNotAllowed, "PUT only")
+		return
+	}
+
+	cif, err := h.requestAuthenticator(r)
+	if err != nil {
+		respond.WithError(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+
+	newAddress := cd.Address{}
+	err = json.NewDecoder(r.Body).Decode(&newAddress)
+	if err != nil {
+		respond.WithError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	err = h.provider.SaveAddress(cif, newAddress)
+	if err != nil {
+		respond.WithError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	respond.WithOK(w)
 }
 
 func (h *ContactDetailsHandler) saveContactDetail(w http.ResponseWriter, r *http.Request, saveMethod func(string,string)error) {

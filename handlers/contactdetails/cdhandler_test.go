@@ -114,3 +114,4 @@ func (mockContactDetailsProvider) GetContactDetails(cif string) (details cd.Cont
 func (mockContactDetailsProvider) SaveEmailAddress(cif string, newEmailAddress string) error { return nil }
 func (mockContactDetailsProvider) SaveMobileNumber(cif string, newMobileNumber string) error { return nil }
 func (mockContactDetailsProvider) SaveHomeNumber(cif string, newHomeNumber string) error { return nil }
+func (mockContactDetailsProvider) SaveAddress(cif string, newAddress cd.Address) error { return nil }
