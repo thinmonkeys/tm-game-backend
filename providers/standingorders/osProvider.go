@@ -51,7 +51,42 @@ func (sop StandingOrderProvider) GetStandingOrders(cif string) ([]payments.Payme
 }
 
 func (sop StandingOrderProvider) SaveStandingOrder(cif string, payment payments.Payment) (err error) { 
-	return nil
+	accountID, err := sop.accountCache.GetPrimaryAccountId(cif)
+	if err != nil { return }
+
+	osSOs, err := sop.getOutsystemsStandingOrders(cif)
+	if err != nil { return err }
+
+	id := fmt.Sprintf("%022d", payment.ID)
+	found := false
+	var osSO osStandingOrder
+	for _,so := range osSOs {
+		if so.PaymentID == id {
+			osSO = so
+			found = true
+			break
+		}
+	}
+	if !found {
+		return fmt.Errorf("Standing order %d not found", payment.ID)
+	}
+
+	formattedDate := payment.DueDate.Format(common.DateOnlyFormat)
+	changed := false
+	if osSO.PaymentDate != formattedDate || osFrequencyMapFromFiserv[osSO.PaymentFrequency] != payment.Frequency {
+		osSO.PaymentFrequency = osFrequencyMapToFiserv[payment.Frequency]	
+		osSO.PaymentDate = formattedDate
+		changed = true
+	}
+	if int(math.Round(osSO.Amount * 100)) != payment.AmountPence {
+		osSO.Amount = float64(payment.AmountPence) * float64(0.01)
+		changed = true
+	}
+
+	if changed {
+		_,err = sop.connection.RunRequest(http.MethodPut, fmt.Sprintf("/standingorders/%s/%s", cif, accountID), osSO)
+	}
+	return
 }
 
 type osStandingOrder struct {
@@ -73,8 +108,6 @@ type osPayee struct {
 	Reference string
 	Nickname string
 }
-
-
 
 func (sop StandingOrderProvider) getOutsystemsStandingOrders(cif string) (osSOs []osStandingOrder, err error) {
 	osSOs = []osStandingOrder{}
