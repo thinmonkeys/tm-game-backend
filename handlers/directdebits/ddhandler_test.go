@@ -67,7 +67,7 @@ func TestConfirmDirectDebits(t *testing.T) {
 			testHandler := DirectDebitHandler { 
 				scoreGetter: mockGetter,
 				scorePutter: mockPutter,
-				directDebitLister: ListDummyDirectDebits,
+				paymentLister: ListDummyDirectDebits,
 				requestAuthenticator: func(*http.Request) (string, error) { return tc.cifKey, nil },
 			}
 
