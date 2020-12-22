@@ -1,8 +1,10 @@
 package common
 
 import (
+	"net/http"
 	"time"
 
+	"../../respond"
 	db "../../store"
 )
 
@@ -22,6 +24,7 @@ type ConfirmationHandler struct {
 	BadgePutter BadgePutter
 }
 
+
 func DefaultConfirmationHandler() ConfirmationHandler {
 	scoreStore,err := db.DefaultDynamicScoreStore()
 	if(err != nil) { panic(err) }
@@ -38,6 +41,27 @@ func DefaultConfirmationHandler() ConfirmationHandler {
 		BadgeGetter: badgeStore.Get,
 		BadgePutter: badgeStore.Put,
 	}
+}
+
+func (h *ConfirmationHandler) HandleConfirmRequest(w http.ResponseWriter, r *http.Request, category ScoreCategory, authenticator RequestAuthenticatorFunc) {
+	if(r.Method != http.MethodPost) { 
+		respond.WithError(w, http.StatusMethodNotAllowed, "POST only")
+		return
+	}
+
+	cif, err := authenticator(r)
+	if err != nil {
+		respond.WithError(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+
+	response, err := h.ConfirmCategory(cif, category)
+	if err != nil {
+		respond.WithError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	respond.WithJSON(w, http.StatusOK, response)
 }
 
 func (h *ConfirmationHandler) ConfirmCategory(cif string, category ScoreCategory) (resp ConfirmationResponse, err error) {

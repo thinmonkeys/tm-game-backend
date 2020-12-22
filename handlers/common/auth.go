@@ -15,6 +15,8 @@ type TokenSettings struct {
 	ExpiryDuration time.Duration
 }
 
+type RequestAuthenticatorFunc func(r *http.Request) (cifKey string, err error) 
+
 type RequestAuthenticator struct {
 	tokenSettings TokenSettings
 }

@@ -11,6 +11,7 @@ import (
 
 	db "../../store"
 	"../common"
+	"../../payments"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -138,4 +139,12 @@ func TestConfirmDirectDebits(t *testing.T) {
 			assert.Equal(t, strings.Replace(tc.expectedResponseText, "TIME_PLACEHOLDER", string(jsonDate), 1) + "\n", string(body), "Response body")
 		})
 	}
+}
+
+func ListDummyDirectDebits(cif string) (dds []payments.Payment, err error){
+	return []payments.Payment {
+		payments.Build(1, 301, "Manchester City Council", time.Date(2021, 1, 1, 0, 0, 0, 0, time.Local), payments.FrequencyMonthly, 10875),
+		payments.Build(2, 302, "Sky TV", time.Date(2021, 1, 14, 0, 0, 0, 0, time.Local), payments.FrequencyMonthly, 3000),
+		payments.Build(3, 303, "Vodafone", time.Date(2020, 12, 29, 0, 0, 0, 0, time.Local), payments.FrequencyMonthly, 2500),
+	}, nil
 }
