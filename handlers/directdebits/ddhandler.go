@@ -1,40 +1,40 @@
 package directdebits
 
 import (
+	"encoding/json"
 	"net/http"
 	"time"
 
+	"../common"
+	"../../payments"
 	"../../respond"
 	"../../store"
+	ddProvider "../../providers/directdebits"
 )
 
-type ScoreGetter func(cif string) (db.DynamicScoreRecord, bool, error)
-type ScorePutter func(record db.DynamicScoreRecord) (error)
-type DirectDebitLister func(cif string) ([]DirectDebit, error)
-
 type DirectDebitResponse struct {
-	DirectDebitList []DirectDebit
+	DirectDebitList []payments.Payment
 	LastConfirmed time.Time
 }
 
-type ConfirmationResponse struct {
-	PointsGained int
-	NextPointsEligible time.Time
-}
-
 type DirectDebitHandler struct {
-	scoreGetter ScoreGetter
-	scorePutter ScorePutter
-	directDebitLister DirectDebitLister
+	scoreGetter common.ScoreGetter
+	scorePutter common.ScorePutter
+	paymentLister payments.PaymentLister
+	paymentUpdater payments.PaymentUpdater
+	requestAuthenticator func(r *http.Request) (cifKey string, err error) 
 }
 
 func NewHandler() DirectDebitHandler {
 	store, err := db.DefaultDynamicScoreStore()
 	if(err != nil) { panic(err) }
+	provider := ddProvider.NewProvider()
 	return DirectDebitHandler{
 		scoreGetter: store.Get,
 		scorePutter: store.Put,
-		directDebitLister: ListDummyDirectDebits,
+		paymentLister: provider.GetDirectDebits,
+		paymentUpdater: provider.SaveDirectDebit,
+		requestAuthenticator: common.DefaultRequestAuthenticator().AuthenticateRequestAllowingQueryOverride,
 	}
 }
 
@@ -44,14 +44,13 @@ func (h *DirectDebitHandler) GetDirectDebits(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	cifs := r.URL.Query()["cif"]
-	if len(cifs) == 0 {
-		respond.WithError(w, http.StatusBadRequest, "Please provide the Customer CIF in the querystring (?cif=)")
+	cif, err := h.requestAuthenticator(r)
+	if err != nil {
+		respond.WithError(w, http.StatusUnauthorized, err.Error())
 		return
 	}
-	cif := cifs[0]
 
-	dds, err := h.directDebitLister(cif)
+	dds, err := h.paymentLister(cif)
 	if err != nil {
 		respond.WithError(w, http.StatusInternalServerError, err.Error());
 		return
@@ -78,12 +77,11 @@ func (h *DirectDebitHandler) ConfirmDirectDebits(w http.ResponseWriter, r *http.
 		return
 	}
 
-	cifs := r.URL.Query()["cif"]
-	if len(cifs) == 0 {
-		respond.WithError(w, http.StatusBadRequest, "Please provide the Customer CIF in the querystring (?cif=)")
+	cif, err := h.requestAuthenticator(r)
+	if err != nil {
+		respond.WithError(w, http.StatusUnauthorized, err.Error())
 		return
 	}
-	cif := cifs[0]
 
 	score, scoreFound, err := h.scoreGetter(cif)
 	if err != nil {
@@ -98,22 +96,49 @@ func (h *DirectDebitHandler) ConfirmDirectDebits(w http.ResponseWriter, r *http.
 			Score: 100,
 		}
 		h.scorePutter(score)
-		respond.WithJSON(w, http.StatusOK, ConfirmationResponse { 100, time.Now().AddDate(0, 1, 0) })
+		respond.WithJSON(w, http.StatusOK, common.ConfirmationResponse { 100, time.Now().AddDate(0, 1, 0) })
 	} else if score.LastUpdatedDirectDebits.AddDate(0, 1, 0).Before(time.Now()) {
 		score.Score += 100
 		score.LastUpdatedDirectDebits = time.Now()
 		h.scorePutter(score)
-		respond.WithJSON(w, http.StatusOK, ConfirmationResponse { 100, time.Now().AddDate(0, 1, 0) })
+		respond.WithJSON(w, http.StatusOK, common.ConfirmationResponse { 100, time.Now().AddDate(0, 1, 0) })
 	} else {
-		respond.WithJSON(w, http.StatusOK, ConfirmationResponse { 0, score.LastUpdatedDirectDebits.AddDate(0, 1, 0) })
+		respond.WithJSON(w, http.StatusOK, common.ConfirmationResponse { 0, score.LastUpdatedDirectDebits.AddDate(0, 1, 0) })
 	}
 }
 
+func (h *DirectDebitHandler) UpdateDirectDebit(w http.ResponseWriter, r *http.Request) {
+	if(r.Method != http.MethodPut) { 
+		respond.WithError(w, http.StatusMethodNotAllowed, "PUT only")
+		return
+	}
 
-func ListDummyDirectDebits(cif string) (dds []DirectDebit, err error){
-	return []DirectDebit {
-		BuildDirectDebit(1, "3040506070", 301, "Manchester City Council", 10875, 401, "Monthly on the 1st", time.Date(2021, 1, 1, 0, 0, 0, 0, time.Local)),
-		BuildDirectDebit(1, "3040506070", 302, "Sky TV", 3000, 414, "Monthly on the 14th", time.Date(2021, 1, 14, 0, 0, 0, 0, time.Local)),
-		BuildDirectDebit(1, "3040506070", 303, "Vodafone", 2500, 429, "Monthly on the 29th", time.Date(2020, 12, 29, 0, 0, 0, 0, time.Local)),
+	cif, err := h.requestAuthenticator(r)
+	if err != nil {
+		respond.WithError(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+
+	directDebit := payments.Payment{}
+	err = json.NewDecoder(r.Body).Decode(&directDebit)
+	if err != nil {
+		respond.WithError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	err = h.paymentUpdater(cif, directDebit)
+	if err != nil {
+		respond.WithError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	respond.WithOK(w)
+}
+
+func ListDummyDirectDebits(cif string) (dds []payments.Payment, err error){
+	return []payments.Payment {
+		payments.Build(1, 301, "Manchester City Council", time.Date(2021, 1, 1, 0, 0, 0, 0, time.Local), payments.FrequencyMonthly, 10875),
+		payments.Build(2, 302, "Sky TV", time.Date(2021, 1, 14, 0, 0, 0, 0, time.Local), payments.FrequencyMonthly, 3000),
+		payments.Build(3, 303, "Vodafone", time.Date(2020, 12, 29, 0, 0, 0, 0, time.Local), payments.FrequencyMonthly, 2500),
 	}, nil
 }

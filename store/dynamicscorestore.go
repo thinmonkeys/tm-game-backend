@@ -37,12 +37,12 @@ type DynamicScoreStore struct {
 
 // DynamicScoreRecord is the data used to store challenges.
 type DynamicScoreRecord struct {
-	CustomerCIF  string `json:"customerCif"`
-	Score    	int `json:"score"`
-	LastUpdatedContactDetails    time.Time `json:"lastUpdatedContactDetails"`
-	LastUpdatedStandingOrders 	 time.Time `json:"lastUpdatedStandingOrders"`
-	LastUpdatedDirectDebits 	 time.Time `json:"lastUpdatedDirectDebits"`
-	LastUpdatedIncomes 	 		 time.Time `json:"lastUpdatedIncomes"`
+	CustomerCIF  string 
+	Score    	int 
+	LastUpdatedContactDetails    time.Time
+	LastUpdatedStandingOrders 	 time.Time 
+	LastUpdatedDirectDebits 	 time.Time 
+	LastUpdatedIncomes 	 		 time.Time
 }
 
 const scoreRecordName = "score"
