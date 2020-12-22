@@ -4,6 +4,7 @@ import (
 	userScoreHandler "../handlers/userScoreHandler"
 	directDebitHandler "../handlers/directdebits"
 	standingOrderHandler "../handlers/standingorders"
+	incomeHandler "../handlers/incomes"
 	contactDetailsHandler "../handlers/contactdetails"
 	commonHandler "../handlers/common"
 	loginHandler "../handlers/login"
@@ -17,6 +18,7 @@ func New() (*chi.Mux, error) {
 	ch := commonHandler.DefaultConfirmationHandler()
 	dd := directDebitHandler.NewHandler(ch)
 	so := standingOrderHandler.NewHandler(ch)
+	inc := incomeHandler.NewHandler(ch)
 	cd := contactDetailsHandler.NewHandler(ch)
 
 	r := chi.NewRouter()
@@ -31,6 +33,10 @@ func New() (*chi.Mux, error) {
 	r.Get("/standingorders", so.GetPayments)	
 	r.Post("/standingorders", so.ConfirmPayments)
 	r.Put("/standingorders", so.UpdatePayment)
+
+	r.Get("/incomes", inc.GetPayments)	
+	r.Post("/incomes", inc.ConfirmPayments)
+	r.Put("/incomes", inc.UpdatePayment)
 
 	r.Get("/contactdetails", cd.GetContactDetails)	
 	r.Post("/contactdetails", cd.ConfirmContactDetails)
