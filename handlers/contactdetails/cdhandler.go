@@ -3,23 +3,26 @@ package contactdetails
 import (
 	"net/http"
 	"time"
+	"io/ioutil"
 
-	"../../respond"
-	db "../../store"
 	"../common"
+	"../../respond"
+	cd "../../contactdetails"
+	db "../../store"
+	cdProvider "../../providers/contactdetails"
 )
 
-type ContactDetailsGetter func(cif string) (ContactDetails, error)
+type ContactDetailsGetter func(cif string) (cd.ContactDetails, error)
 
 type ContactDetailsResponse struct {
-	ContactDetails ContactDetails
+	ContactDetails cd.ContactDetails
 	LastConfirmed time.Time
 }
 
 type ContactDetailsHandler struct {
 	scoreGetter common.ScoreGetter
 	scorePutter common.ScorePutter
-	contactDetailsGetter ContactDetailsGetter
+	provider cd.ContactDetailsProvider
 	requestAuthenticator func(r *http.Request) (cifKey string, err error) 
 }
 
@@ -29,7 +32,7 @@ func NewHandler() ContactDetailsHandler {
 	return ContactDetailsHandler{
 		scoreGetter: store.Get,
 		scorePutter: store.Put,
-		contactDetailsGetter: GetDummyContactDetails,
+		provider: cdProvider.NewProvider(),
 		requestAuthenticator: common.DefaultRequestAuthenticator().AuthenticateRequestAllowingQueryOverride,
 	}
 }
@@ -46,7 +49,7 @@ func (h *ContactDetailsHandler) GetContactDetails(w http.ResponseWriter, r *http
 		return
 	}
 
-	details, err := h.contactDetailsGetter(cif)
+	details, err := h.provider.GetContactDetails(cif)
 	if err != nil {
 		respond.WithError(w, http.StatusInternalServerError, err.Error());
 		return
@@ -111,14 +114,40 @@ func (h *ContactDetailsHandler) ConfirmContactDetails(w http.ResponseWriter, r *
 	}
 }
 
-func GetDummyContactDetails(cif string) (details ContactDetails, err error){
-	return BuildContactDetails (
-		cif,
-		"Freda",
-		"Flintstone",
-		"07777123456",
-		"01617731234",
-		"freda@theflintstones.co.uk",
-		BuildAddress("Building 1", "Think Park", "", "Mosley Road", "Trafford Park", "Manchester", "Lancashire", "M17 1FQ"),
-	), nil
+func (h *ContactDetailsHandler) SaveMobileNumber(w http.ResponseWriter, r *http.Request) {
+	h.saveContactDetail(w, r, h.provider.SaveMobileNumber)
 }
+func (h *ContactDetailsHandler) SaveHomeNumber(w http.ResponseWriter, r *http.Request) {
+	h.saveContactDetail(w, r, h.provider.SaveHomeNumber)
+}
+func (h *ContactDetailsHandler) SaveEmailAddress(w http.ResponseWriter, r *http.Request) {
+	h.saveContactDetail(w, r, h.provider.SaveEmailAddress)
+}
+
+func (h *ContactDetailsHandler) saveContactDetail(w http.ResponseWriter, r *http.Request, saveMethod func(string,string)error) {
+	if(r.Method != http.MethodPut) { 
+		respond.WithError(w, http.StatusMethodNotAllowed, "PUT only")
+		return
+	}
+
+	cif, err := h.requestAuthenticator(r)
+	if err != nil {
+		respond.WithError(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		respond.WithError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	err = saveMethod(cif, string(body))
+	if err != nil {
+		respond.WithError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	respond.WithOK(w)
+}
+

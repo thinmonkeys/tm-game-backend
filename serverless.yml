@@ -53,6 +53,10 @@ functions:
           path: contactdetails
           method: post
           cors: true
+      - http:
+          path: contactdetails/{type}
+          method: put
+          cors: true
         
 
 

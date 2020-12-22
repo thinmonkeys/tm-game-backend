@@ -29,6 +29,9 @@ func New() (*chi.Mux, error) {
 
 	r.Get("/contactdetails", cd.GetContactDetails)	
 	r.Post("/contactdetails", cd.ConfirmContactDetails)
+	r.Put("/contactdetails/mobile", cd.SaveMobileNumber)
+	r.Put("/contactdetails/home", cd.SaveHomeNumber)
+	r.Put("/contactdetails/email", cd.SaveEmailAddress)
 
 	return r, nil
 }

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	cd "../../contactdetails"
 	db "../../store"
 	"github.com/stretchr/testify/assert"
 )
@@ -67,7 +68,7 @@ func TestConfirmDirectDebits(t *testing.T) {
 			testHandler := ContactDetailsHandler { 
 				scoreGetter: mockGetter,
 				scorePutter: mockPutter,
-				contactDetailsGetter: GetDummyContactDetails,
+				provider: mockContactDetailsProvider{},
 				requestAuthenticator: func(*http.Request) (string, error) { return tc.cifKey, nil },
 			}
 
@@ -95,3 +96,21 @@ func TestConfirmDirectDebits(t *testing.T) {
 		})
 	}
 }
+
+type mockContactDetailsProvider struct {}
+
+func (mockContactDetailsProvider) GetContactDetails(cif string) (details cd.ContactDetails, err error){
+	return cd.BuildContactDetails (
+		cif,
+		"Freda",
+		"Flintstone",
+		"07777123456",
+		"01617731234",
+		"freda@theflintstones.co.uk",
+		cd.BuildAddress("Building 1", "Think Park", "", "Mosley Road", "Trafford Park", "Manchester", "Lancashire", "M17 1FQ"),
+	), nil
+}
+
+func (mockContactDetailsProvider) SaveEmailAddress(cif string, newEmailAddress string) error { return nil }
+func (mockContactDetailsProvider) SaveMobileNumber(cif string, newMobileNumber string) error { return nil }
+func (mockContactDetailsProvider) SaveHomeNumber(cif string, newHomeNumber string) error { return nil }
