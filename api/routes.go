@@ -8,6 +8,7 @@ import (
 	contactDetailsHandler "../handlers/contactdetails"
 	commonHandler "../handlers/common"
 	loginHandler "../handlers/login"
+	helloHandler "../handlers/helloworld"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 )
@@ -25,6 +26,9 @@ func New() (*chi.Mux, error) {
 	r.Use(middleware.Logger)
 	r.Post("/login", login.Login)
 	r.Get("/score", us.GetScore)
+
+	hw := helloHandler.NewHandler()
+	r.Get("/helloworld", hw.SayHello)
 
 	r.Get("/directdebits", dd.GetDirectDebits)	
 	r.Post("/directdebits", dd.ConfirmDirectDebits)

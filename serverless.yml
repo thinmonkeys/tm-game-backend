@@ -57,6 +57,12 @@ functions:
           path: contactdetails/{type}
           method: put
           cors: true
-        
+  helloworld:
+    handler: bin/main
+    events:
+      - http:
+          path: helloworld
+          method: get
+          cors: true
 
 

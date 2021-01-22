@@ -1,9 +1,9 @@
 package helloworld
 
 import (
-	"fmt"
 	"net/http"
 	"../../respond"
+	"io"
 )
 
 type HelloWorldHandler struct {
@@ -22,7 +22,7 @@ func (h *HelloWorldHandler) SayHello(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Credentials", "true")
 	w.Header().Set("Content-Type", "text/html")
-	w.WriteHeader(status)
+	w.WriteHeader(http.StatusOK)
 
 	io.WriteString(w, `<html>
     <head>
