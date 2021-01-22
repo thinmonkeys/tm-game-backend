@@ -19,11 +19,19 @@ func (h *HelloWorldHandler) SayHello(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	names := r.URL.Query()["name"]
-	if len(names) == 0 {
-		respond.WithError(w, http.StatusBadRequest, "Please provide your name in the querystring")
-		return
-	}
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Credentials", "true")
+	w.Header().Set("Content-Type", "text/html")
+	w.WriteHeader(status)
 
-	respond.WithJSON(w, http.StatusOK, fmt.Sprintf("Hello %s!", names[0]))
+	io.WriteString(w, `<html>
+    <head>
+        <title>Hello World</title>
+    </head>
+    <body>
+        This is a page presented inside the thinkmoney app but actually hosted in a separate AWS website.
+<br/><br/>
+        <a href="index.html">Refresh</a>
+    </body>
+</html>`)
 }
